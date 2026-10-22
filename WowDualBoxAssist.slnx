@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/WowDualBoxAssist/WowDualBoxAssist.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/DualBoxAssistTests/DualBoxAssistTests.csproj" />
+    <Project Path="tests/FakeGame/FakeGame.csproj" />
+  </Folder>
+</Solution>
