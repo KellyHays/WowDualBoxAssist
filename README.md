@@ -26,9 +26,6 @@ Things to stay away from, with this tool or any other:
 Blizzard has the final say on enforcement, so no tool can promise you won't be banned. What this
 one does is no different from Alt-Tab.
 
-(Earlier versions of this repo were a key broadcaster for private servers. That code is gone; it
-is still in git history.)
-
 ## Using it
 
 1. Start both WoW clients in **borderless windowed** mode. They show up under **Games** on their
@@ -138,3 +135,12 @@ tests\run-tests.ps1 -Focus   # also swaps between two fake game windows for real
 ```
 
 The focus test also checks that the fake games received no key or mouse messages at all.
+
+## Contributing
+
+Issues and pull requests are welcome. Anything that sends input to a game, or reads or changes
+the game's memory or files, won't be merged: staying inside Blizzard's rules is the point.
+
+## License
+
+[MIT](LICENSE): use it, change it, fork it, share it.
