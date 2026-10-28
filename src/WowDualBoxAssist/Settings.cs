@@ -16,6 +16,15 @@ public sealed class Settings
 
     public string ProcessNames { get; set; } = "Wow, Wow-64, WowClassic, WowT, WowB";
 
+    /// <summary>
+    /// What "Launch both" asks Battle.net for: its launch code for the game (WoW for retail, WoWC for
+    /// Classic, WoWF for Forever...) and the game account each client logs in as, main first, named
+    /// as Battle.net's account dropdown shows it ("WoW1", or "WoW1 (US)" to tell regions apart).
+    /// </summary>
+    public string LaunchProduct { get; set; } = "WoW";
+    public string MainAccount { get; set; } = "WoW1";
+    public string AltAccount { get; set; } = "WoW2";
+
     /// <summary>"System" follows the Windows app theme; "Light" or "Dark" forces one.</summary>
     public string Theme { get; set; } = "System";
 

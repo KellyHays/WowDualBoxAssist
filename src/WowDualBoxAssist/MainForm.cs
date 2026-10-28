@@ -48,6 +48,10 @@ internal sealed class MainForm : Form
     private readonly Button _refreshButton = new();
     private readonly Label _clientsInfo = new();
     private readonly TextBox _processNamesBox = new();
+    private readonly TextBox _launchProductBox = new();
+    private readonly TextBox _mainAccountBox = new();
+    private readonly TextBox _altAccountBox = new();
+    private readonly Button _launchButton = new();
     private readonly ComboBox _layoutCombo = new();
     private readonly Button _applyLayoutButton = new();
     private readonly System.Windows.Forms.Timer _layoutTimer = new() { Interval = 3000 };
@@ -136,6 +140,9 @@ internal sealed class MainForm : Form
         int themeIdx = Array.IndexOf(ThemeChoices, _settings.Theme);
         _themeCombo.SelectedIndex = themeIdx >= 0 ? themeIdx : 0;
         _processNamesBox.Text = _settings.ProcessNames;
+        _launchProductBox.Text = _settings.LaunchProduct;
+        _mainAccountBox.Text = _settings.MainAccount;
+        _altAccountBox.Text = _settings.AltAccount;
         FillLayouts();
     }
 
@@ -147,6 +154,9 @@ internal sealed class MainForm : Form
         _settings.SwapFromAnyWindow = _fromAnyWindow.Checked;
         _settings.Theme = ThemeChoices[Math.Max(0, _themeCombo.SelectedIndex)];
         _settings.ProcessNames = _processNamesBox.Text;
+        _settings.LaunchProduct = _launchProductBox.Text.Trim();
+        _settings.MainAccount = _mainAccountBox.Text.Trim();
+        _settings.AltAccount = _altAccountBox.Text.Trim();
         _settings.Save();
         if (namesChanged) ForceRefresh();
 
@@ -499,6 +509,96 @@ internal sealed class MainForm : Form
 
     private void OnDisplaySettingsChanged(object? sender, EventArgs e) => BeginInvoke(FillLayouts);
 
+    // ---------------------------------------------------------------- launching
+
+    /// <summary>
+    /// Picks the main's account in Battle.net's dropdown and launches it, waits for its window so it
+    /// is found first and becomes the main, then does the same for the alt. Both go through
+    /// Battle.net, so both log in on their own.
+    /// </summary>
+    private async void LaunchBoth()
+    {
+        string? battleNet = BnetLauncher.FindBattleNet();
+        if (battleNet is null)
+        {
+            ShowAlert("Battle.net isn't installed where expected, so the games can't be launched from here.");
+            return;
+        }
+        string product = _settings.LaunchProduct;
+        string[] accounts = { _settings.MainAccount, _settings.AltAccount };
+        if (product.Length == 0 || accounts.Any(a => a.Length == 0))
+        {
+            ShowAlert("Fill in the launch code and both game accounts first.");
+            return;
+        }
+
+        var names = WowWindowFinder.ParseProcessNames(_settings.ProcessNames);
+        _launchButton.Enabled = false;
+        try
+        {
+            BnetLauncher.EnsureRunning(battleNet);
+            await BnetWindow.WaitForWindowAsync(TimeSpan.FromSeconds(60));
+
+            // The dropdown belongs to whichever game's page is showing; picking on another game's page
+            // would change that game's account and still launch the wrong one.
+            string? shown = BnetLauncher.ShownProduct();
+            LaunchLog.Write($"Battle.net shows product '{shown}'");
+            if (shown is not null && !BnetLauncher.IsProductOf(shown, product))
+            {
+                ShowAlert($"Battle.net is showing another game's page. Open the game for {product} in Battle.net, then try again.");
+                return;
+            }
+
+            for (int i = 0; i < accounts.Length; i++)
+            {
+                ShowAlert($"Picking {accounts[i]} in Battle.net…");
+                await BnetWindow.SelectAccountAsync(accounts[i]);
+
+                ShowAlert($"Launching {accounts[i]} through Battle.net…");
+                var asked = DateTime.UtcNow;
+                int pid = await BnetLauncher.LaunchAsync(battleNet, product, names, TimeSpan.FromSeconds(60));
+
+                // Battle.net logs the account it really launched; a wrong one would knock the other game offline.
+                string? launched = BnetLauncher.LaunchedAccountSince(asked);
+                LaunchLog.Write($"Battle.net launched account '{launched}'");
+                if (launched is not null && !AccountPicker.Matches(launched, accounts[i]))
+                {
+                    ShowAlert($"Battle.net launched {launched} instead of {accounts[i]}. Stopped here.");
+                    return;
+                }
+
+                ShowAlert($"{accounts[i]} is starting. Waiting for its window…");
+                if (!await WaitForWindow(pid, TimeSpan.FromSeconds(90)))
+                {
+                    ShowAlert($"{accounts[i]} started but its window never showed up.");
+                    return;
+                }
+            }
+            ShowAlert($"{accounts[0]} and {accounts[1]} are up as main and alt.");
+        }
+        catch (Exception ex) when (ex is LaunchException or TimeoutException or Win32Exception)
+        {
+            ShowAlert(ex.Message);
+        }
+        finally
+        {
+            _launchButton.Enabled = true;
+        }
+    }
+
+    /// <summary>Scans until a game window from <paramref name="pid"/> shows up, so it takes its place in the main/alt order.</summary>
+    private async Task<bool> WaitForWindow(int pid, TimeSpan timeout)
+    {
+        var clock = Stopwatch.StartNew();
+        while (clock.Elapsed < timeout)
+        {
+            RefreshWindows();
+            if (_windows.Any(w => w.Pid == pid)) return true;
+            await Task.Delay(500);
+        }
+        return false;
+    }
+
     // ---------------------------------------------------------------- status
 
     private void ShowAlert(string text)
@@ -614,11 +714,11 @@ internal sealed class MainForm : Form
 
         AutoScaleDimensions = new SizeF(96F, 96F);
         AutoScaleMode = AutoScaleMode.Dpi;
-        ClientSize = new Size(680, 500);
+        ClientSize = new Size(680, 535);
         ResumeLayout(false);
         PerformLayout();
 
-        MinimumSize = LogicalToDeviceUnits(new Size(640, 530));
+        MinimumSize = LogicalToDeviceUnits(new Size(640, 565));
     }
 
     /// <summary>A titled block: bold header, thin rule, then the content. Themes cleanly, unlike GroupBox.</summary>
@@ -749,6 +849,27 @@ internal sealed class MainForm : Form
         _processNamesBox.TextChanged += OnOptionChanged;
         layout.Controls.Add(_processNamesBox, 1, 4);
         layout.SetColumnSpan(_processNamesBox, 2);
+
+        layout.Controls.Add(new Label { Text = "Launch:", AutoSize = true, Anchor = AnchorStyles.Left, Margin = new Padding(3, 0, 8, 0) }, 0, 5);
+        var launch = new FlowLayoutPanel { Dock = DockStyle.Fill, AutoSize = true, WrapContents = false, Margin = new Padding(0, 3, 0, 0) };
+        TextBox[] boxes = { _launchProductBox, _mainAccountBox, _altAccountBox };
+        string[] before = { "", "as", "and" };
+        for (int i = 0; i < boxes.Length; i++)
+        {
+            if (before[i].Length > 0)
+                launch.Controls.Add(new Label { Text = before[i], AutoSize = true, Margin = new Padding(4, 6, 4, 0) });
+            boxes[i].Width = 70;
+            boxes[i].Margin = new Padding(3, 3, 3, 3);
+            boxes[i].TextChanged += OnOptionChanged;
+            launch.Controls.Add(boxes[i]);
+        }
+        _launchButton.Text = "Launch both";
+        _launchButton.AutoSize = true;
+        _launchButton.Margin = new Padding(8, 2, 3, 3);
+        _launchButton.Click += (_, _) => LaunchBoth();
+        launch.Controls.Add(_launchButton);
+        layout.Controls.Add(launch, 1, 5);
+        layout.SetColumnSpan(launch, 2);
 
         return layout;
     }

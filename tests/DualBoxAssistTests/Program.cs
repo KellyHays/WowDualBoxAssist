@@ -35,6 +35,7 @@ static class T
         Capture();
         Names();
         SettingsRoundTrip();
+        AccountPicking();
         ScanSpeed();
         LayoutMath();
         if (args.Length == 3 && args[0] == "--focus") Focus(args[1], args[2]);
@@ -177,6 +178,68 @@ static class T
         Check(!new Settings().SwapHotkey.IsSet && new Settings().SwapFromAnyWindow, "defaults: no key yet, works from other windows");
         var old = JsonSerializer.Deserialize<Settings>("{\"ToggleKey\":145,\"KeyList\":\"1-9\",\"Theme\":\"Light\"}", Settings.JsonOptions)!;
         Check(old.Theme == "Light" && !old.SwapHotkey.IsSet, "unknown old fields are ignored");
+    }
+
+    static void AccountPicking()
+    {
+        // Text and positions as Windows' OCR really read them off Battle.net's WoW Forever page (150% scaling).
+        Section("Battle.net account picking");
+        static OcrLine L(int l, int t, int r, int b, string text) => new(text, Rectangle.FromLTRB(l, t, r, b));
+        var closed = new List<OcrLine>
+        {
+            L(1384, 1013, 1494, 1037, "Play Now"),
+            L(60, 862, 340, 875, "GAME VERSION & ACCOUNT"),
+            L(72, 907, 209, 923, "WOW: Forever"),
+            L(72, 967, 180, 986, "woW2 (US)"),
+            L(203, 1042, 268, 1071, "Play"),
+        };
+        var open = new List<OcrLine>
+        {
+            L(90, 757, 385, 777, "NINJAFOO (US) - Starter Edition"),
+            L(88, 805, 355, 824, "WOWI (EU) - Starter Edition"),
+            L(88, 853, 196, 872, "wowi (US)"),
+            L(88, 901, 196, 920, "woW2 (US)"),
+            L(72, 967, 180, 986, "woW2 (US)"),
+            L(203, 1042, 268, 1071, "Play"),
+            L(1384, 1013, 1494, 1037, "Play Now"),
+        };
+
+        var play = AccountPicker.PlayButton(closed);
+        Check(play?.Text == "Play", "Play button found, not \"Play Now\"");
+        var box = AccountPicker.AccountBox(closed, play!);
+        Check(box?.Text == "woW2 (US)", "account dropdown is the box above Play, not the game version");
+        Check(AccountPicker.Matches(box!.Text, "WoW2") && !AccountPicker.Matches(box.Text, "WoW1"), "misread \"woW2\" still reads as WoW2");
+        Check(AccountPicker.AccountItem(open, box, "WoW1")?.Text == "wowi (US)", "WoW1 picks the full US account over the EU Starter one");
+        Check(AccountPicker.AccountItem(open, box, "WoW1 (EU)")?.Text == "WOWI (EU) - Starter Edition", "a region picks that one");
+        Check(AccountPicker.AccountItem(open, box, "NINJAF00")?.Text == "NINJAFOO (US) - Starter Edition", "zeros misread as O still match");
+        Check(AccountPicker.AccountItem(open, box, "WoW2")?.Bounds.Top == 901, "the list entry, not the dropdown itself");
+        Check(AccountPicker.AccountItem(open, box, "WoW3") is null, "a missing account isn't guessed");
+        Check(!AccountPicker.Matches("WoW12 (US)", "WoW1"), "WoW1 doesn't match WoW12");
+
+        // Battle.net's own log, which says which account a launch really used (times are UTC).
+        string[] log =
+        {
+            "I 2026-10-28 21:08:51.402170 [GameLaunchController] {Main} LaunchBinary: uid=wowf selectedRegion=US binaryType=game",
+            "I 2026-10-28 21:08:51.515942 [InstallManager] {Main} Game launch options: programId=WoW GAME_ACCOUNT=WoW2 REGION=US LOCALE=enUS",
+            "I 2026-10-28 21:08:51.516240 [InstallManager] {Main} Game launch options: programId=WoW ACCOUNT=(hidden) ACCOUNT_TS=1793221731",
+            "I 2026-10-28 21:08:59.646316 [InstallManager] {Main} Game launch options: programId=WoW GAME_ACCOUNT=WoW1 REGION=US LOCALE=enUS",
+        };
+        var at = new DateTime(2026, 10, 28, 21, 8, 51, DateTimeKind.Utc);
+        Check(BnetLauncher.LaunchedAccountSince(log, at) == "WoW1", "newest launch's account read from Battle.net's log");
+        Check(BnetLauncher.LaunchedAccountSince(log.Take(3), at) == "WoW2", "the ticket line without GAME_ACCOUNT is skipped");
+        Check(BnetLauncher.LaunchedAccountSince(log, at.AddSeconds(30)) is null, "no launch since then: unknown");
+
+        string[] pages =
+        {
+            "D 2026-10-28 21:15:01.276800 [GameController] {Main} Active product set to: WoW_retail",
+            "D 2026-10-28 21:25:02.025407 [GameController] {Main} Active product set to: WoWFNoUpgrade_wowf",
+            "I 2026-10-28 21:24:59.467971 [Main] {Main} Command line arguments: {[0]=--exec=launch WoWF}",
+        };
+        Check(BnetLauncher.ShownProduct(pages) == "WoWFNoUpgrade_wowf", "page shown: the newest product line, whatever order the files came in");
+        Check(BnetLauncher.IsProductOf("WoWFNoUpgrade_wowf", "WoWF") && BnetLauncher.IsProductOf("WoWFPreloadAndPlay_wowf", "WoWF"),
+            "Forever's product names belong to WoWF");
+        Check(BnetLauncher.IsProductOf("WoW_retail", "WoW") && !BnetLauncher.IsProductOf("WoW_retail", "WoWF"), "retail belongs to WoW only");
+        Check(!BnetLauncher.IsProductOf("WoWFNoUpgrade_wowf", "WoW"), "Forever's page is not retail's");
     }
 
     static void ScanSpeed()

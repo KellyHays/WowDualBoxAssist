@@ -44,6 +44,32 @@ mouse side button, `F13`-`F24` if your keyboard or mouse software has them, or a
 `Ctrl + ``. If you pick a plain typing key such as `` ` `` or `Q`, the app warns you that it will
 stop typing that character, in chat too.
 
+### Launching both games
+
+**Launch both** starts the main's game account, waits for its window, then starts the alt's, all
+through the Battle.net app, so both log in on their own. Fill in:
+
+* the game's Battle.net launch code: `WoW` (retail), `WoWC` (Classic), `WoWF` (Forever), …
+* the two game accounts as Battle.net's account dropdown names them, e.g. `WoW1` and `WoW2`
+  (add the region, `WoW1 (US)`, if the same name is in the list twice).
+
+Battle.net always launches the account picked in its dropdown, and offers no other way to choose
+one, so the app picks it there, the way you would:
+
+1. It checks Battle.net's own log that the game's page is showing, and asks you to open it if not.
+   (Battle.net can switch pages from the command line, but then passes a link to the next launch
+   that WoW rejects with a "CommandLine Parse Error".)
+2. It reads Battle.net's window with Windows' built-in text recognition to find the account
+   dropdown above **Play**, clicks it if it shows the wrong account, and clicks the right entry.
+   The clicks are posted to the Battle.net window: your cursor doesn't move and Battle.net doesn't
+   need to be in front.
+3. It launches (`--exec="launch WoWF"`), then checks Battle.net's log for the account it really
+   used, and stops if it was the wrong one.
+
+These clicks are the only ones the app ever makes, and they only go to Battle.net, never to a game.
+Because it finds things by their text, moving or resizing Battle.net is fine; a redesign of that
+page may need an update. What each launch did is logged to `%AppData%\WowDualBoxAssist\launch.log`.
+
 ### Window layouts
 
 Pick a **Layout** under Games. The main always fills the main monitor; the alt goes where the
@@ -108,7 +134,7 @@ time, because two copies would both swap on the same press and cancel each other
 
 ```
 dotnet build WowDualBoxAssist.slnx -c Release
-src\WowDualBoxAssist\bin\Release\net10.0-windows\WowDualBoxAssist.exe
+src\WowDualBoxAssist\bin\Release\net10.0-windows10.0.19041.0\WowDualBoxAssist.exe
 ```
 
 To install it with a desktop shortcut (run again after code changes, with the app closed):

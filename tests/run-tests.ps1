@@ -13,7 +13,7 @@ dotnet build "$root\WowDualBoxAssist.slnx" -c Release -nologo -v q
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 
 $fake = "$root\tests\FakeGame\bin\Release\net10.0-windows\FakeGame.exe"
-$tests = "$root\tests\DualBoxAssistTests\bin\Release\net10.0-windows\DualBoxAssistTests.exe"
+$tests = "$root\tests\DualBoxAssistTests\bin\Release\net10.0-windows10.0.19041.0\DualBoxAssistTests.exe"
 
 if (-not $Focus -and -not $Place) {
     & $tests
