@@ -240,6 +240,11 @@ static class T
             "Forever's product names belong to WoWF");
         Check(BnetLauncher.IsProductOf("WoW_retail", "WoW") && !BnetLauncher.IsProductOf("WoW_retail", "WoWF"), "retail belongs to WoW only");
         Check(!BnetLauncher.IsProductOf("WoWFNoUpgrade_wowf", "WoW"), "Forever's page is not retail's");
+        Check(BnetLauncher.IsProductOf("WoW_wowf", "WoWF") && !BnetLauncher.IsProductOf("WoW_wowf", "WoW"),
+            "Forever's page since launch (WoW_wowf) is WoWF, not retail");
+        Check(BnetLauncher.IsProductOf("WoWX12_retail", "WoW") && !BnetLauncher.IsProductOf("WoWX12_retail", "WoWF"),
+            "retail's expansion product is WoW");
+        Check(!BnetLauncher.IsProductOf("WoW_wow_classic", "WoWF"), "classic isn't Forever");
     }
 
     static void ScanSpeed()

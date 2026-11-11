@@ -99,14 +99,27 @@ internal static class BnetLauncher
 
     internal static string? ShownProduct(IEnumerable<string> lines) => Latest(lines, ActiveProduct, DateTime.MinValue);
 
+    // The part after the first '_' names the game install; where it's one we know, it decides. Since
+    // Forever went live its page is "WoW_wowf", so the name in front no longer tells it from retail.
+    private static readonly Dictionary<string, string> InstallCodes = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["wowf"] = "WoWF",
+        ["retail"] = "WoW",
+    };
+
     /// <summary>
-    /// Whether a product from <see cref="ShownProduct()"/> belongs to the launch code: "WoWFNoUpgrade_wowf"
-    /// and "WoWFPreloadAndPlay_wowf" are WoWF, "WoW_retail" is WoW. "WoWFNoUpgrade" is not WoW: the
-    /// launch code has to end where a new word starts.
+    /// Whether a product from <see cref="ShownProduct()"/> belongs to the launch code: "WoW_wowf",
+    /// "WoWFNoUpgrade_wowf" and "WoWFPreloadAndPlay_wowf" are WoWF; "WoW_retail" and "WoWX12_retail" are
+    /// WoW. Otherwise the name in front decides, and the launch code has to end where a new word starts
+    /// ("WoWFNoUpgrade" is not WoW).
     /// </summary>
     public static bool IsProductOf(string product, string launchCode)
     {
-        string name = product.Split('_')[0];
+        int split = product.IndexOf('_');
+        if (split >= 0 && InstallCodes.TryGetValue(product[(split + 1)..], out string? code))
+            return string.Equals(code, launchCode, StringComparison.OrdinalIgnoreCase);
+
+        string name = split >= 0 ? product[..split] : product;
         if (!name.StartsWith(launchCode, StringComparison.OrdinalIgnoreCase)) return false;
         if (name.Length == launchCode.Length) return true;
         return name.Length > launchCode.Length + 1 && char.IsUpper(name[launchCode.Length]) && char.IsLower(name[launchCode.Length + 1]);
